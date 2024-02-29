@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <getopt.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
@@ -8,10 +9,12 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define BUFFER_SIZE 1024 // Define the maximum size of messages
+#define BUFFER_SIZE 1024
 
-int sockfd;    // Socket file descriptor
-char name[32]; // Client name
+int sockfd;        // Socket file descriptor
+char username[32]; // Username for login
+char realname[32]; // Real name of the user
+char password[32]; // Password for login
 
 // Function to overwrite the current line in stdout
 void str_overwrite_stdout() {
@@ -50,7 +53,7 @@ void *send_msg_handler(void *arg) {
     if (strcmp(message, "exit") == 0) {
       break;
     } else {
-      sprintf(buffer, "%s: %s\n", name, message);
+      sprintf(buffer, "%s: %s\n", username, message);
       send(sockfd, buffer, strlen(buffer), 0);
     }
 
@@ -73,33 +76,49 @@ void *recv_msg_handler(void *arg) {
     } else if (receive == 0) {
       break;
     } else {
-      // Handle errors
+      // Handle error
     }
   }
   return NULL;
 }
 
-int main(int argc, char **argv) {
-  if (argc != 3) {
-    printf("Usage: %s <IP> <port>\n", argv[0]);
-    return EXIT_FAILURE;
+// Function to parse command-line arguments
+void parse_args(int argc, char *argv[], char *ip, int *port) {
+  int opt;
+  while ((opt = getopt(argc, argv, "u:r:p:a:")) != -1) {
+    switch (opt) {
+    case 'u': // Username
+      strncpy(username, optarg, 31);
+      username[31] = '\0';
+      break;
+    case 'r': // Real name
+      strncpy(realname, optarg, 31);
+      realname[31] = '\0';
+      break;
+    case 'p': // Password
+      strncpy(password, optarg, 31);
+      password[31] = '\0';
+      break;
+    case 'a': // Address and port in format address:port
+      sscanf(optarg, "%14[^:]:%d", ip, port);
+      break;
+    default:
+      fprintf(stderr,
+              "Usage: %s -u username -r realname -p password -a address:port\n",
+              argv[0]);
+      exit(EXIT_FAILURE);
+    }
   }
+}
 
-  char *ip = argv[1];       // Server IP address
-  int port = atoi(argv[2]); // Server port
+int main(int argc, char **argv) {
+  char ip[15] = "";
+  int port;
+
+  parse_args(argc, argv, ip, &port);
 
   // Register signal handler for Ctrl+C
   signal(SIGINT, catch_ctrl_c_and_exit);
-
-  // Prompt user for their name
-  printf("Please enter your name: ");
-  fgets(name, 32, stdin);
-  str_trim_lf(name, strlen(name));
-
-  if (strlen(name) > 32 || strlen(name) < 2) {
-    printf("Name must be less than 32 and more than 2 characters.\n");
-    return EXIT_FAILURE;
-  }
 
   // Create socket and set up connection
   struct sockaddr_in server_addr;
@@ -116,8 +135,10 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  // Send client's name to the server
-  send(sockfd, name, 32, 0);
+  // Send login details (username, real name, password) to the server
+  char login_details[128];
+  sprintf(login_details, "%s %s %s", username, realname, password);
+  send(sockfd, login_details, strlen(login_details), 0);
 
   printf("=== WELCOME TO THE CHATROOM ===\n");
 
