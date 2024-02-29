@@ -68,3 +68,19 @@ This project outlines the creation of a lightweight Internet Relay Chat (IRC) ap
 * **Peer Review**: Regular code reviews within the team to ensure code quality and collaborative learning.
 
 This project will require a strong understanding of network programming in C, multi-threading, and possibly GUI development for the advanced features. It's an excellent opportunity to apply and showcase the skills learned in operating system API and communication labs.
+
+## Changelog
+
+### [Unreleased]
+
+* GUI enhancements.
+* User authentication workflow.
+
+### [0.2.0] - Testing Branch Update
+
+* Added multiple client handling.
+* Improved server stability.
+
+### [0.1.0] - Initial Release
+
+* Basic client-server communication established.
