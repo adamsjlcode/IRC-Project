@@ -71,16 +71,25 @@ This project will require a strong understanding of network programming in C, mu
 
 ## Changelog
 
-### [Unreleased]
+[1.1.0] - 2024-02-28
+Added
 
-* GUI enhancements.
-* User authentication workflow.
+    * Client-side command-line argument parsing for username, real name, password, and server address/port.
+    * Server-side handling of client disconnections and resource cleanup after disconnection.
+    * Client-side control handling for clean exits using the SIGINT signal.
+    * Implementation of a threading model on the client-side for handling message sending and receiving concurrently.
+    * Server-side preparation for command execution with a placeholder function execute_command.
 
-### [0.2.0] - Testing Branch Update
+Changed
 
-* Added multiple client handling.
-* Improved server stability.
+    * Refactored client structure to include username, realname, and password.
+    * Updated server's handle_client function to handle client disconnections gracefully.
 
-### [0.1.0] - Initial Release
+[1.0.0] - 2024-02-14
+Added
 
-* Basic client-server communication established.
+    * Initial release of the IRC client and server applications with basic communication capabilities.
+    * Server can accept a port number as a command-line argument.
+    * Server can handle multiple incoming client connections using POSIX sockets.
+    * Client can connect to the server using the server's IP address and port number.
+    * Client can send and receive messages to and from the server.
