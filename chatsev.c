@@ -10,6 +10,7 @@
 
 #define MAX_CLIENTS 10
 #define BUFFER_SIZE 1024
+#define VERBOSE 0
 
 // Structure to represent a client
 typedef struct {
@@ -104,12 +105,43 @@ void execute_command(client_t *cli, char *cmd) {
 int is_command(const char *message) { return message[0] == '/'; }
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-      printf("Usage: %s <port>\n", argv[0]);
+  int port = 0;
+  int max_clients = MAX_CLIENTS;
+  int verbose = VERBOSE;
+  int opt;
+
+  // Process command-line arguments using getopt
+  while ((opt = getopt(argc, argv, "p:")) != -1) {
+      switch (opt) {
+          case 'p':
+              port = atoi(optarg);
+              break;
+          default:
+              fprintf(stderr, "Usage: %s -p <port> [options]\n", argv[0]);
+              return EXIT_FAILURE;
+      }
+  }
+
+  // Process optional arguments for max clients and verbose mode
+  for (int i = optind; i < argc; i++) {
+      if (strcmp(argv[i], "--max-clients") == 0 && i + 1 < argc) {
+          max_clients = atoi(argv[++i]);
+      } else if (strcmp(argv[i], "--verbose") == 0) {
+          verbose = 1;
+      }
+  }
+
+  if (port == 0) {
+      fprintf(stderr, "Port must be specified with -p option\n");
       return EXIT_FAILURE;
   }
 
-  int port = atoi(argv[1]);
+  printf("Starting server on port %d\n", port);
+  printf("Max clients: %d\n", max_clients);
+  if (verbose) {
+      printf("Verbose mode enabled\n");
+  }
+
   int listenfd = 0, connfd = 0;
   struct sockaddr_in serv_addr, cli_addr;
   pthread_t tid;
