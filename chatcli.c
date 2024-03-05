@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <errno.h>
 
 #define BUFFER_SIZE 1024
 
@@ -128,11 +129,11 @@ int main(int argc, char **argv) {
   server_addr.sin_port = htons(port);
 
   // Connect to the server
-  int err =
-      connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+  int err = connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
   if (err == -1) {
-    printf("ERROR: connect\n");
-    return EXIT_FAILURE;
+      perror("ERROR: Failed to connect to the server");
+      close(sockfd);  // Close the socket before exiting
+      return EXIT_FAILURE;
   }
 
   // Send login details (username, real name, password) to the server
