@@ -78,15 +78,29 @@ void *send_msg_handler(void *arg) {
   return NULL;
 }
 
+// Timestamp function
+void getTimeStamp(char *timestamp) {
+	time_t rawtime;
+	struct tm *timeinfo;
+
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+
+	strftime(timestamp, 20, "%Y-%m-%d %H:%M:%S", timeinfo);
+}
+
 // Thread function to handle receiving messages
 void *recv_msg_handler(void *arg) {
   char message[BUFFER_SIZE] = {};
   while (1) {
     memset(message, 0, BUFFER_SIZE);
     int receive = recv(sockfd, message, BUFFER_SIZE, 0);
+    char timestamp[20];
+    
     if (receive > 0) {
       message[receive] = '\0'; 
-      printf("%s", message);
+      getTimeStamp(timestamp);
+      printf("%s - %s", timestamp, message);
       str_overwrite_stdout();
     } else if (receive == 0) {
       break;
