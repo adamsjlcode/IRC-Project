@@ -70,8 +70,10 @@ void *send_msg_handler(void *arg) {
 void *recv_msg_handler(void *arg) {
   char message[BUFFER_SIZE] = {};
   while (1) {
+    memset(message, 0, BUFFER_SIZE);
     int receive = recv(sockfd, message, BUFFER_SIZE, 0);
     if (receive > 0) {
+      message[receive] = '\0'; 
       printf("%s", message);
       str_overwrite_stdout();
     } else if (receive == 0) {
