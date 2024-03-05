@@ -93,6 +93,17 @@ void send_message(char *s, int uid) {
   pthread_mutex_unlock(&clients_mutex);
 }
 
+// Timestamp function
+void getTimeStamp(char *timestamp) {
+	time_t rawtime;
+	struct tm *timeinfo;
+
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+
+	strftime(timestamp, 20, "%Y-%m-%d %H:%M:%S", timeinfo);
+}
+
 void execute_command(client_t *cli, char *cmd) {
   // Placeholder for 100 different commands
 
@@ -110,7 +121,8 @@ int main(int argc, char **argv) {
   int max_clients = MAX_CLIENTS;
   int verbose = VERBOSE;
   int opt;
-
+  char timestamp[20];
+  
   // Process command-line arguments using getopt
   while ((opt = getopt(argc, argv, "p:")) != -1) {
       switch (opt) {
@@ -187,7 +199,8 @@ int main(int argc, char **argv) {
       add_client(cli);
       pthread_create(&tid, NULL, &handle_client, (void *)cli);
 
-      
+      getTimeStamp(timestamp);
+	    printf("%s\n", timestamp);
   }
 
   // Close the listening socket
