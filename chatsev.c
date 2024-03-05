@@ -105,14 +105,16 @@ int is_command(const char *message) { return message[0] == '/'; }
 
 int main(int argc, char **argv) {
   if (argc != 2) {
-    printf("Usage: %s <port>\n", argv[0]);
-    return EXIT_FAILURE;
+      printf("Usage: %s <port>\n", argv[0]);
+      return EXIT_FAILURE;
   }
 
   int port = atoi(argv[1]);
   int listenfd = 0, connfd = 0;
-  struct sockaddr_in serv_addr;
+  struct sockaddr_in serv_addr, cli_addr;
   pthread_t tid;
+  char cli_ip[INET_ADDRSTRLEN]; // Buffer to store the string form of the client's IP
+  socklen_t cli_len = sizeof(cli_addr);
 
   listenfd = socket(AF_INET, SOCK_STREAM, 0);
   serv_addr.sin_family = AF_INET;
@@ -122,32 +124,41 @@ int main(int argc, char **argv) {
   signal(SIGPIPE, SIG_IGN);
 
   if (bind(listenfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-    perror("ERROR: Socket binding failed");
-    return EXIT_FAILURE;
+      perror("ERROR: Socket binding failed");
+      return EXIT_FAILURE;
   }
 
   if (listen(listenfd, 10) < 0) {
-    perror("ERROR: Socket listening failed");
-    return EXIT_FAILURE;
+      perror("ERROR: Socket listening failed");
+      return EXIT_FAILURE;
   }
 
   printf("<[ SERVER STARTED ]>\n");
 
   while (1) {
-    connfd = accept(listenfd, (struct sockaddr *)NULL, NULL);
+      connfd = accept(listenfd, (struct sockaddr *)&cli_addr, &cli_len);
+      if (connfd < 0) {
+          perror("ERROR: Accepting connection failed");
+          continue;
+      }
 
-    client_t *cli = (client_t *)malloc(sizeof(client_t));
-    cli->address = serv_addr;
-    cli->sockfd = connfd;
-    cli->uid = connfd;
+      // Convert IP addresses from binary to text
+      inet_ntop(AF_INET, &(cli_addr.sin_addr), cli_ip, INET_ADDRSTRLEN);
+      printf("Connection accepted from %s:%d\n", cli_ip, ntohs(cli_addr.sin_port));
 
-    add_client(cli);
-    pthread_create(&tid, NULL, &handle_client, (void *)cli);
+      client_t *cli = (client_t *)malloc(sizeof(client_t));
+      cli->address = cli_addr;
+      cli->sockfd = connfd;
+      cli->uid = connfd; // Using connfd as a simple UID, but should be unique per connection
 
-    sleep(1);
+      add_client(cli);
+      pthread_create(&tid, NULL, &handle_client, (void *)cli);
+
+      
   }
+
+  // Close the listening socket
+  close(listenfd);
 
   return EXIT_SUCCESS;
 }
-
-// Additional supporting functions...
