@@ -12,6 +12,14 @@
 
 #define BUFFER_SIZE 1024
 
+#define ANSI_STYLE_BOLD   "\e[1m"
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_RESET   "\x1b[0m"
+
+
+
 int sockfd;        // Socket file descriptor
 char username[32]; // Username for login
 // char realname[32]; // Real name of the user
@@ -63,10 +71,10 @@ void *send_msg_handler(void *arg) {
     fgets(message, BUFFER_SIZE, stdin);
     str_trim_lf(message, BUFFER_SIZE);
 
-    if (strcmp(message, "exit") == 0) {
+    if (strcmp(message, "/exit") == 0) {
       break;
     } else {
-      sprintf(buffer, "%s: %s\n", username, message);
+      sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_GREEN "%s" ANSI_RESET ": %s\n", username, message);
       send(sockfd, buffer, strlen(buffer), 0);
     }
 
