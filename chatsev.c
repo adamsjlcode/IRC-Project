@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <bits/getopt_core.h>
 
 #define MAX_CLIENTS 10
 #define BUFFER_SIZE 1024
@@ -18,8 +19,8 @@ typedef struct {
   int sockfd;
   int uid;
   char username[32];
-  char realname[32];
-  char password[32];
+  // char realname[32];
+  // char password[32];
 } client_t;
 
 client_t *clients[MAX_CLIENTS];
