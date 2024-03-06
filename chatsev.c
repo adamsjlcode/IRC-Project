@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <bits/getopt_core.h>
+#include <limits.h> // For INT_MAX
 
 #define MAX_CLIENTS 10  // Maximum number of clients the server can handle concurrently
 #define BUFFER_SIZE 1024  // Size of the buffer used for sending and receiving messages
@@ -25,7 +26,7 @@ typedef struct {
 
 client_t *clients[MAX_CLIENTS];  // Array of pointers to clients
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;  // Mutex for synchronizing access to clients array
-pthread_t thread_ids[MAX_THREADS];  // Array to keep track of thread IDs
+pthread_t *thread_ids = NULL; // Pointer for dynamic allocation
 
 // Function Prototypes
 void add_client(client_t *cl);
@@ -231,14 +232,26 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Port must be specified with -p option\n");
         return EXIT_FAILURE;
     }
-
+    
     printf("Starting server on port %d\n", port);
     printf("Max clients: %d\n", max_clients);
     printf("Ready to accept client connections...\n");
     if (verbose) {
         printf("Verbose mode enabled\n");
     }
+    // Ensure the system can handle the number of clients
+    if (max_clients <= 0 || max_clients > INT_MAX / sizeof(pthread_t)) {
+        fprintf(stderr, "Invalid or too large number of max clients.\n");
+        return EXIT_FAILURE;
+    }
 
+    // Allocate memory for thread_ids based on max_clients
+    thread_ids = malloc(max_clients * sizeof(pthread_t));
+    if (!thread_ids) {
+        perror("Failed to allocate memory for thread IDs");
+        return EXIT_FAILURE;
+    }
+    memset(thread_ids, 0, max_clients * sizeof(pthread_t));
     int connfd = 0;
     struct sockaddr_in serv_addr, cli_addr;
     pthread_t tid;
@@ -303,6 +316,7 @@ int main(int argc, char **argv) {
     }
     // Close the listening socket and cleanup
     close(listenfd);
-
+    // Free the thread_ids before exiting
+    free(thread_ids);
     return EXIT_SUCCESS;
 }
