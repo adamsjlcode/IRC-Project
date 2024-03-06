@@ -106,14 +106,23 @@ void *recv_msg_handler(void *arg) {
     char timestamp[20];
     
     if (receive > 0) {
-      message[receive] = '\0'; 
-      getTimeStamp(timestamp);
-      printf("%s - %s", timestamp, message);
-      str_overwrite_stdout();
+      message[receive] = '\0';  // Null-terminate the message
+      getTimeStamp(timestamp);  // Get the current timestamp
+      
+      // Check if the message is a server shutdown notice
+      if (strcmp(message, "Server is shutting down.\n") == 0) {
+        printf("%s - Server is shutting down. Exiting...\n", timestamp);
+        exit(EXIT_SUCCESS);  // Exit client program
+      }
+      
+      printf("%s - %s", timestamp, message);  // Print the timestamp and message
+      str_overwrite_stdout();  // Overwrite the stdout
     } else if (receive == 0) {
-      break;
+      printf("Server connection closed. Exiting...\n");
+      exit(EXIT_SUCCESS);  // Exit client program
     } else {
-      //Future Commands
+      perror("recv failed");  // Print the receive error
+      exit(EXIT_FAILURE);  // Exit client program due to error
     }
   }
   return NULL;
