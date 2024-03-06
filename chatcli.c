@@ -217,7 +217,8 @@ int main(int argc, char **argv) {
   sprintf(login_details, "%s", username);
   send(sockfd, login_details, strlen(login_details), 0);
 
-  printf("=== WELCOME TO THE CHATROOM ===\n");
+  printf("\n=== Welcome to the Chatroom! ===\n");
+  printf("Type '/help' for a list of commands or '/exit' to leave the chatroom.\n\n");
 
   // Create send and receive threads
   pthread_t send_msg_thread;
