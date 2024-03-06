@@ -13,17 +13,39 @@
 #define BUFFER_SIZE 1024
 
 #define ANSI_STYLE_BOLD   "\e[1m"
+#define ANSI_COLOR_ESCAPE    "\x1b["
 #define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
 #define ANSI_RESET   "\x1b[0m"
 
 
 
 int sockfd;        // Socket file descriptor
 char username[32]; // Username for login
+
+// A ANSI color code to allow a user to define the userid color in thier messages
+// The default color is Green
+// The value must be checked to ensure the user is not entering another ANSI escape sequence or colors that are not allowed.
+char colorid[2];
+
 // char realname[32]; // Real name of the user
 // char password[32]; // Password for login
+
+
+// Function to check if the user entered colorid is valid
+int validate_colorid(char *s){
+  // Cast type to int
+  int colorid = atoi(s);
+  
+  // If statement to check if the value is an allowed ANSI color
+  if (colorid > 31 && colorid < 37)
+  {
+    return 1;
+  }
+  else{
+    return 0;
+  }
+}
+
 
 // Function to overwrite the current line in stdout
 void str_overwrite_stdout() {
@@ -53,11 +75,12 @@ void catch_ctrl_c_and_exit(int sig) {
 void print_usage(char *program_name) {
     fprintf(stderr,
         // "Usage: %s -u username -r realname -p password -a address:port\n"
-        "Usage: %s -u username -a address:port\n"
+        "Usage: %s -u username -c ansicode -a address:port\n"
         "  -u  Set the username for the login\n"
         // "  -r  Set the real name of the user\n"
         // "  -p  Set the password for the login\n"
         "  -a  Set the IP address and port of the server in the format address:port\n",
+        "  -c  Set the color of your user id. This is visible on other users clients. ASNI colors between 32 and 36 (inclusive) are allowed.",
         program_name);
 }
 
@@ -74,7 +97,8 @@ void *send_msg_handler(void *arg) {
     if (strcmp(message, "/exit") == 0) {
       break;
     } else {
-      sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_GREEN "%s" ANSI_RESET ": %s\n", username, message);
+      // This is the message that will be displayed for the recieving users.
+      sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_ESCAPE "%sm%s" ANSI_RESET ": %s\n", colorid, username, message);
       send(sockfd, buffer, strlen(buffer), 0);
     }
 
@@ -127,7 +151,7 @@ void parse_args(int argc, char *argv[], char *ip, int *port) {
   }
   int opt;
   // while ((opt = getopt(argc, argv, "u:r:p:a:")) != -1) {
-    while ((opt = getopt(argc, argv, "u:a:")) != -1) {
+    while ((opt = getopt(argc, argv, "u:c:a:")) != -1) {
     switch (opt) {
     case 'u': // Username
       strncpy(username, optarg, 31);
@@ -144,6 +168,16 @@ void parse_args(int argc, char *argv[], char *ip, int *port) {
     case 'a': // Address and port in format address:port
       sscanf(optarg, "%14[^:]:%d", ip, port);
       break;
+    case 'c': // The color the user wants to assign to thier username
+      // Check if they have entered a valid userid, if not print the usage message and close the program.
+      if(validate_colorid(optarg)){
+        strncpy(colorid, optarg, 2);
+        break;
+      }
+      else{
+        print_usage(argv[0]);
+        exit(EXIT_FAILURE);
+      }
     default:
       fprintf(stderr,
               // "Usage: %s -u username -r realname -p password -a address:port\n",
