@@ -63,27 +63,29 @@ void print_usage(char *program_name) {
 
 // Thread function to handle sending messages
 void *send_msg_handler(void *arg) {
-  char message[BUFFER_SIZE] = {};
-  char buffer[BUFFER_SIZE + 32] = {};
+    char message[BUFFER_SIZE] = {};
+    char buffer[BUFFER_SIZE + 32] = {};
 
-  while (1) {
-    str_overwrite_stdout();
-    fgets(message, BUFFER_SIZE, stdin);
-    str_trim_lf(message, BUFFER_SIZE);
+    while (1) {
+        str_overwrite_stdout();
+        fgets(message, BUFFER_SIZE, stdin);
+        str_trim_lf(message, BUFFER_SIZE);
 
-    if (strcmp(message, "/exit") == 0) {
-      break;
-    } else {
-      sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_GREEN "%s" ANSI_RESET ": %s\n", username, message);
-      send(sockfd, buffer, strlen(buffer), 0);
+        // Only prepend username for non-command messages
+        if (strncmp(message, "/", 1) != 0) {
+            sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_GREEN "%s" ANSI_RESET ": %s\n", username, message);
+            send(sockfd, buffer, strlen(buffer), 0);
+        } else {
+            // Send the command as is, without the username prefix
+            send(sockfd, message, strlen(message), 0);
+        }
+
+        bzero(message, BUFFER_SIZE);
+        bzero(buffer, BUFFER_SIZE + 32);
     }
 
-    bzero(message, BUFFER_SIZE);
-    bzero(buffer, BUFFER_SIZE + 32);
-  }
-
-  catch_ctrl_c_and_exit(2);
-  return NULL;
+    catch_ctrl_c_and_exit(2);
+    return NULL;
 }
 
 // Timestamp function
