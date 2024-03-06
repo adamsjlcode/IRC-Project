@@ -67,7 +67,7 @@ void *send_msg_handler(void *arg) {
 
         // Only prepend username for non-command messages
         if (strncmp(message, "/", 1) != 0) {
-            sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_GREEN "%s" ANSI_RESET ": %s\n", username, message);
+        snprintf(buffer, sizeof(buffer), ANSI_STYLE_BOLD ANSI_COLOR_GREEN "%s" ANSI_RESET ": %s\n", username, message);            
             send(sockfd, buffer, strlen(buffer), 0);
         } else {
             // Send the command as is, without the username prefix
