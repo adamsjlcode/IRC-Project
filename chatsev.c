@@ -12,6 +12,8 @@
 #define MAX_CLIENTS 10  // Maximum number of clients the server can handle concurrently
 #define BUFFER_SIZE 1024  // Size of the buffer used for sending and receiving messages
 #define VERBOSE 0  // Verbose mode flag (0 for off, 1 for on)
+#define MAX_THREADS 10 // One thread per client
+
 int listenfd = 0;  // Global variable for the listening socket
 // Structure to represent a client
 typedef struct {
@@ -23,6 +25,7 @@ typedef struct {
 
 client_t *clients[MAX_CLIENTS];  // Array of pointers to clients
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;  // Mutex for synchronizing access to clients array
+pthread_t thread_ids[MAX_THREADS];  // Array to keep track of thread IDs
 
 // Function Prototypes
 void add_client(client_t *cl);
@@ -87,7 +90,13 @@ void shutdown_server() {
         }
     }
     pthread_mutex_unlock(&clients_mutex);
-
+    // Join all non-null threads
+    for (int i = 0; i < MAX_THREADS; i++) {
+        if (thread_ids[i] != 0) {
+            pthread_join(thread_ids[i], NULL);
+            thread_ids[i] = 0; // Clear the thread ID
+        }
+    }
     // Close the listening socket
     close(listenfd);
 }
@@ -127,8 +136,16 @@ void *handle_client(void *arg) {
     close(cli->sockfd);
     remove_client(cli->uid);
     free(cli);
-    pthread_detach(pthread_self());
-
+    // Clear the thread ID
+    pthread_mutex_lock(&clients_mutex);
+    for (int i = 0; i < MAX_THREADS; i++) {
+        if (pthread_equal(pthread_self(), thread_ids[i])) {
+            thread_ids[i] = 0;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&clients_mutex);
+    pthread_exit(NULL);
     return NULL;
 }
 
@@ -181,12 +198,19 @@ int main(int argc, char **argv) {
     int verbose = VERBOSE;
     int opt;
     char timestamp[20];
+    char *endptr;
+    long val;
 
     // Process command-line arguments using getopt
     while ((opt = getopt(argc, argv, "p:")) != -1) {
         switch (opt) {
             case 'p':
-                port = atoi(optarg);
+                val = strtol(optarg, &endptr, 10);
+                if (endptr == optarg || *endptr != '\0' || val <= 0 || val > 65535) {
+                    fprintf(stderr, "Invalid port number.\n");
+                    return EXIT_FAILURE;
+                }
+                port = (int) val;
                 break;
             default:
                 fprintf(stderr, "Usage: %s -p <port> [options]\n", argv[0]);
@@ -267,8 +291,16 @@ int main(int argc, char **argv) {
 
         getTimeStamp(timestamp);  // Get the current timestamp
         printf("%s: New client connected.\n", timestamp);
+        // Save the thread ID
+        pthread_mutex_lock(&clients_mutex);
+        for (int i = 0; i < MAX_THREADS; ++i) {
+            if (thread_ids[i] == 0) {
+                thread_ids[i] = tid;
+                break;
+            }
+        }
+        pthread_mutex_unlock(&clients_mutex);
     }
-
     // Close the listening socket and cleanup
     close(listenfd);
 
