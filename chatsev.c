@@ -121,6 +121,7 @@ void *handle_client(void *arg) {
     while (1) {
         int length = recv(cli->sockfd, buffer, BUFFER_SIZE, 0);
         if (length <= 0) {
+            printf("Client %s disconnected.\n", cli->username);
             break; // Client disconnected
         }
 
