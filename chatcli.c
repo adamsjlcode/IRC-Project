@@ -86,28 +86,29 @@ void print_usage(char *program_name) {
 
 // Thread function to handle sending messages
 void *send_msg_handler(void *arg) {
-  char message[BUFFER_SIZE] = {};
-  char buffer[BUFFER_SIZE + 32] = {};
+    char message[BUFFER_SIZE] = {};
+    char buffer[BUFFER_SIZE + 32] = {};
 
-  while (1) {
-    str_overwrite_stdout();
-    fgets(message, BUFFER_SIZE, stdin);
-    str_trim_lf(message, BUFFER_SIZE);
+    while (1) {
+        str_overwrite_stdout();
+        fgets(message, BUFFER_SIZE, stdin);
+        str_trim_lf(message, BUFFER_SIZE);
 
-    if (strcmp(message, "/exit") == 0) {
-      break;
-    } else {
-      // This is the message that will be displayed for the recieving users.
-      sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_ESCAPE "%sm%s" ANSI_RESET ": %s\n", colorid, username, message);
-      send(sockfd, buffer, strlen(buffer), 0);
+        // Only prepend username for non-command messages
+        if (strncmp(message, "/", 1) != 0) {
+            sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_ESCAPE "%sm%s" ANSI_RESET ": %s\n", colorid, username, message);
+            send(sockfd, buffer, strlen(buffer), 0);
+        } else {
+            // Send the command as is, without the username prefix
+            send(sockfd, message, strlen(message), 0);
+        }
+
+        bzero(message, BUFFER_SIZE);
+        bzero(buffer, BUFFER_SIZE + 32);
     }
 
-    bzero(message, BUFFER_SIZE);
-    bzero(buffer, BUFFER_SIZE + 32);
-  }
-
-  catch_ctrl_c_and_exit(2);
-  return NULL;
+    catch_ctrl_c_and_exit(2);
+    return NULL;
 }
 
 // Timestamp function
@@ -130,14 +131,23 @@ void *recv_msg_handler(void *arg) {
     char timestamp[20];
     
     if (receive > 0) {
-      message[receive] = '\0'; 
-      getTimeStamp(timestamp);
-      printf("%s - %s", timestamp, message);
-      str_overwrite_stdout();
+      message[receive] = '\0';  // Null-terminate the message
+      getTimeStamp(timestamp);  // Get the current timestamp
+      
+      // Check if the message is a server shutdown notice
+      if (strcmp(message, "Server is shutting down.\n") == 0) {
+        printf("%s - Server is shutting down. Exiting...\n", timestamp);
+        exit(EXIT_SUCCESS);  // Exit client program
+      }
+      
+      printf("%s - %s", timestamp, message);  // Print the timestamp and message
+      str_overwrite_stdout();  // Overwrite the stdout
     } else if (receive == 0) {
-      break;
+      printf("Server connection closed. Exiting...\n");
+      exit(EXIT_SUCCESS);  // Exit client program
     } else {
-      //Future Commands
+      perror("recv failed");  // Print the receive error
+      exit(EXIT_FAILURE);  // Exit client program due to error
     }
   }
   return NULL;
@@ -240,7 +250,8 @@ int main(int argc, char **argv) {
   sprintf(login_details, "%s", username);
   send(sockfd, login_details, strlen(login_details), 0);
 
-  printf("=== WELCOME TO THE CHATROOM ===\n");
+  printf("\n=== Welcome to the Chatroom! ===\n");
+  printf("Type '/help' for a list of commands or '/exit' to leave the chatroom.\n\n");
 
   // Create send and receive threads
   pthread_t send_msg_thread;
