@@ -151,12 +151,18 @@ void getTimeStamp(char *timestamp) {
 // Execute command received from a client
 void execute_command(client_t *cli, char *cmd) {
     char log_msg[BUFFER_SIZE];
-    sprintf(log_msg, "Command '%s' used by %s\n", cmd, cli->username);
+    snprintf(log_msg, "Command '%s' used by %s\n", cmd, cli->username);
     printf("%s", log_msg);  // Logging the command and user who executed it
 
     // Basic commands implementation
     if (strcmp(cmd, "/help") == 0) {
-        char *help_msg = "Available Commands:\\n/help - Show help\\n/list - List clients\\n/exit - Disconnect\\n";
+        char help_msg[BUFFER_SIZE];
+        snprintf(help_msg, BUFFER_SIZE, "\nHelp commands:\n""/help - Show this help message\n""/exit - Disconnect from the chat\n");
+        // Log the command usage
+        char log_msg[BUFFER_SIZE];
+        getTimeStamp(log_msg);
+        snprintf(log_msg + strlen(log_msg), BUFFER_SIZE - strlen(log_msg)," - %s used /help command\n", cli->username);
+        printf("%s", log_msg);
         write(cli->sockfd, help_msg, strlen(help_msg));
     } else if (strcmp(cmd, "/list") == 0) {
         // List clients implementation
