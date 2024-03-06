@@ -22,6 +22,12 @@
 
 int sockfd;        // Socket file descriptor
 char username[32]; // Username for login
+
+// A ANSI color code to allow a user to define the userid color in thier messages
+// The default color is Green
+// The value must be checked to ensure the user is not entering another ANSI escape sequence or colors that are not allowed.
+char colorid[] = "32";
+
 // char realname[32]; // Real name of the user
 // char password[32]; // Password for login
 
@@ -53,11 +59,12 @@ void catch_ctrl_c_and_exit(int sig) {
 void print_usage(char *program_name) {
     fprintf(stderr,
         // "Usage: %s -u username -r realname -p password -a address:port\n"
-        "Usage: %s -u username -a address:port\n"
-        "  -u  Set the username for the login\n"
+        "Usage: %s -u username -c ansicode -a address:port\n"
+        "\t-u  Set the username for the login.\n"
         // "  -r  Set the real name of the user\n"
         // "  -p  Set the password for the login\n"
-        "  -a  Set the IP address and port of the server in the format address:port\n",
+        "\t-a  Set the IP address and port of the server in the format address:port.\n"
+        "\t-c  Set the color of your user id. This is visible on other users clients. ASNI colors between 32 and 36 (inclusive) are allowed.\n",
         program_name);
 }
 
