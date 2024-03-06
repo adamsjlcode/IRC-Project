@@ -210,6 +210,7 @@ int main(int argc, char **argv) {
 
     printf("Starting server on port %d\n", port);
     printf("Max clients: %d\n", max_clients);
+    printf("Ready to accept client connections...\n");
     if (verbose) {
         printf("Verbose mode enabled\n");
     }
