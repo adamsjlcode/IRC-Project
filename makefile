@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -pthread
 LDFLAGS =
 
 # Source files
@@ -17,14 +17,14 @@ CLIENT_EXECUTABLE = chatcli
 all: $(SERVER_EXECUTABLE) $(CLIENT_EXECUTABLE)
 
 $(SERVER_EXECUTABLE): $(SERVER_OBJECT)
-	$(CC) $(LDFLAGS) -o $@ $^
+    $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 $(CLIENT_EXECUTABLE): $(CLIENT_OBJECT)
-	$(CC) $(LDFLAGS) -o $@ $^
+    $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+    $(CC) $(CFLAGS) -c -o $@ $<
 
 .PHONY: clean
 clean:
-	rm -f $(SERVER_EXECUTABLE) $(CLIENT_EXECUTABLE) $(SERVER_OBJECT) $(CLIENT_OBJECT)
+    rm -f $(SERVER_EXECUTABLE) $(CLIENT_EXECUTABLE) $(SERVER_OBJECT) $(CLIENT_OBJECT)
