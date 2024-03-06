@@ -12,6 +12,14 @@
 
 #define BUFFER_SIZE 1024
 
+#define ANSI_STYLE_BOLD   "\e[1m"
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_RESET   "\x1b[0m"
+
+
+
 int sockfd;        // Socket file descriptor
 char username[32]; // Username for login
 // char realname[32]; // Real name of the user
@@ -55,27 +63,41 @@ void print_usage(char *program_name) {
 
 // Thread function to handle sending messages
 void *send_msg_handler(void *arg) {
-  char message[BUFFER_SIZE] = {};
-  char buffer[BUFFER_SIZE + 32] = {};
+    char message[BUFFER_SIZE] = {};
+    char buffer[BUFFER_SIZE + 32] = {};
 
-  while (1) {
-    str_overwrite_stdout();
-    fgets(message, BUFFER_SIZE, stdin);
-    str_trim_lf(message, BUFFER_SIZE);
+    while (1) {
+        str_overwrite_stdout();
+        fgets(message, BUFFER_SIZE, stdin);
+        str_trim_lf(message, BUFFER_SIZE);
 
-    if (strcmp(message, "exit") == 0) {
-      break;
-    } else {
-      sprintf(buffer, "%s: %s\n", username, message);
-      send(sockfd, buffer, strlen(buffer), 0);
+        // Only prepend username for non-command messages
+        if (strncmp(message, "/", 1) != 0) {
+            sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_GREEN "%s" ANSI_RESET ": %s\n", username, message);
+            send(sockfd, buffer, strlen(buffer), 0);
+        } else {
+            // Send the command as is, without the username prefix
+            send(sockfd, message, strlen(message), 0);
+        }
+
+        bzero(message, BUFFER_SIZE);
+        bzero(buffer, BUFFER_SIZE + 32);
     }
 
-    bzero(message, BUFFER_SIZE);
-    bzero(buffer, BUFFER_SIZE + 32);
-  }
+    catch_ctrl_c_and_exit(2);
+    return NULL;
+}
 
-  catch_ctrl_c_and_exit(2);
-  return NULL;
+
+// Timestamp function
+void getTimeStamp(char *timestamp) {
+	time_t rawtime;
+	struct tm *timeinfo;
+
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+
+	strftime(timestamp, 20, "%Y-%m-%d %H:%M:%S", timeinfo);
 }
 
 // Thread function to handle receiving messages
@@ -84,9 +106,12 @@ void *recv_msg_handler(void *arg) {
   while (1) {
     memset(message, 0, BUFFER_SIZE);
     int receive = recv(sockfd, message, BUFFER_SIZE, 0);
+    char timestamp[20];
+    
     if (receive > 0) {
       message[receive] = '\0'; 
-      printf("%s", message);
+      getTimeStamp(timestamp);
+      printf("%s - %s", timestamp, message);
       str_overwrite_stdout();
     } else if (receive == 0) {
       break;
