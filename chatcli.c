@@ -68,8 +68,9 @@ void *send_msg_handler(void *arg) {
         // Only prepend username for non-command messages
         if (strncmp(message, "/", 1) != 0) {
         snprintf(buffer, sizeof(buffer), ANSI_STYLE_BOLD ANSI_COLOR_GREEN "%s" ANSI_RESET ": %s\n", username, message);            
-            send(sockfd, buffer, strlen(buffer), 0);
-        } else {
+        send(sockfd, buffer, strlen(buffer), 0);
+        } 
+        else {
             // Send the command as is, without the username prefix
             send(sockfd, message, strlen(message), 0);
         }
@@ -114,6 +115,10 @@ void *recv_msg_handler(void *arg) {
             
             printf("%s - %s", timestamp, message);  // Print the timestamp and message
             str_overwrite_stdout();  // Overwrite the stdout
+        } else if (receive == -1) {
+            perror("Failed to receive message");
+            close(sockfd);
+            exit(EXIT_FAILURE);
         } else if (receive == 0) {
             printf("Server connection closed. Exiting...\n");
             exit(EXIT_SUCCESS);  // Exit client program
@@ -131,19 +136,39 @@ void parse_args(int argc, char *argv[], char *ip, int *port) {
         print_usage(argv[0]);
         exit(EXIT_FAILURE);
     }
+
     int opt;
     while ((opt = getopt(argc, argv, "u:a:")) != -1) {
         switch (opt) {
-            case 'u': // Username
-                strncpy(username, optarg, 31);
-                username[31] = '\0';
-                break;
-            case 'a': // Address and port in format address:port
-                sscanf(optarg, "%14[^:]:%d", ip, port);
-                break;
-            default:
-                print_usage(argv[0]);
+        case 'u': // Username
+            strncpy(username, optarg, 31);
+            username[31] = '\0';
+            break;
+        case 'a': // Address and port in format address:port
+            char temp_ip[16]; // Temporary variable to hold the IP address
+            if (sscanf(optarg, "%15[^:]:%d", temp_ip, port) == 2) {
+                // Validate IP address
+                struct in_addr addr;
+                if (inet_pton(AF_INET, temp_ip, &addr) != 1) {
+                    fprintf(stderr, "Invalid IP address format.\n");
+                    exit(EXIT_FAILURE);
+                }
+                strncpy(ip, temp_ip, 15);
+                ip[15] = '\0';
+                
+                // Validate port number
+                if (*port < 1024 || *port > 65535) {
+                    fprintf(stderr, "Invalid port number. Use a port number between 1024 and 65535.\n");
+                    exit(EXIT_FAILURE);
+                }
+            } else {
+                fprintf(stderr, "Invalid address format. Use address:port format.\n");
                 exit(EXIT_FAILURE);
+            }
+            break;
+        default:
+            print_usage(argv[0]);
+            exit(EXIT_FAILURE);
         }
     }
 }
