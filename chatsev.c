@@ -170,25 +170,60 @@ void getTimeStamp(char *timestamp) {
 // Execute command received from a client
 void execute_command(client_t *cli, char *cmd) {
     char log_msg[BUFFER_SIZE];
-    snprintf(log_msg, "Command '%s' used by %s\n", cmd, cli->username);
-    printf("%s", log_msg);  // Logging the command and user who executed it
+    snprintf(log_msg, sizeof(log_msg), "Command '%s' used by %s\n", cmd, cli->username);
+    printf("%s", log_msg); // Logging the command and user who executed it
 
-    // Basic commands implementation
     if (strcmp(cmd, "/help") == 0) {
+        // Help command implementation
         char help_msg[BUFFER_SIZE];
-        snprintf(help_msg, BUFFER_SIZE, "\nHelp commands:\n""/help - Show this help message\n""/exit - Disconnect from the chat\n");
-        // Log the command usage
-        char log_msg[BUFFER_SIZE];
-        getTimeStamp(log_msg);
-        snprintf(log_msg + strlen(log_msg), BUFFER_SIZE - strlen(log_msg)," - %s used /help command\n", cli->username);
-        printf("%s", log_msg);
+        snprintf(help_msg, sizeof(help_msg), "\nHelp commands:\n/help - Show this help message\n/list - List connected users\n/exit - Disconnect from the chat\n");
         write(cli->sockfd, help_msg, strlen(help_msg));
     } else if (strcmp(cmd, "/list") == 0) {
-        // List clients implementation
+        char *userlist = malloc(BUFFER_SIZE);
+        if (!userlist) {
+            perror("Memory allocation for userlist failed");
+            return;
+        }
+        strcpy(userlist, "Connected users:\n");
+
+        pthread_mutex_lock(&clients_mutex);
+        for (int i = 0; i < MAX_CLIENTS; ++i) {
+            if (clients[i]) {
+                clients[i]->username[31] = '\0'; // Ensure null-termination
+                char *newline_username = malloc(strlen(clients[i]->username) + 2);
+                if (!newline_username) {
+                    perror("Memory allocation for newline_username failed");
+                    continue;
+                }
+                sprintf(newline_username, "%s\n", clients[i]->username);
+
+                char *temp = realloc(userlist, strlen(userlist) + strlen(newline_username) + 1);
+                if (!temp) {
+                    perror("Memory reallocation for userlist failed");
+                    free(newline_username);
+                    break;
+                }
+                userlist = temp;
+                strcat(userlist, newline_username);
+                free(newline_username);
+            }
+        }
+        pthread_mutex_unlock(&clients_mutex);
+
+        if (write(cli->sockfd, userlist, strlen(userlist)) < 0) {
+            perror("Writing user list to client failed");
+        }
+        free(userlist);
+        printf("Sent user list to %s\n", cli->username); // Debug statement
     } else if (strcmp(cmd, "/exit") == 0) {
-        // Disconnect the client
+        // Exit command implementation
+        // Code to disconnect the client
+        close(cli->sockfd);
+        remove_client(cli->uid);
+        free(cli);
     } else {
-        char *unknown_cmd_msg = "Unknown command.\\n";
+        // Unknown command implementation
+        char *unknown_cmd_msg = "Unknown command.\n";
         write(cli->sockfd, unknown_cmd_msg, strlen(unknown_cmd_msg));
     }
 }

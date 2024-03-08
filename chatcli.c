@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdbool.h>
 
 #define BUFFER_SIZE 1024  // Define the maximum size for message buffers
 
@@ -18,7 +19,9 @@
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_RESET   "\x1b[0m"
 
-
+// Global variables
+bool exit_flag = false;
+pthread_mutex_t exit_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int sockfd;        // Socket file descriptor for the client's connection
 char username[32]; // Array to store the username for this client
@@ -60,16 +63,15 @@ void str_trim_lf(char *arr, int length) {
 
 // Function to handle Ctrl+C signal
 void catch_ctrl_c_and_exit(int sig) {
-  // Handle Ctrl+C here, clean up and close socket
-  printf("\nExiting...\n");
-  close(sockfd);
-  exit(EXIT_SUCCESS);
+    pthread_mutex_lock(&exit_mutex);
+    exit_flag = true;  // Set the exit flag
+    pthread_mutex_unlock(&exit_mutex);
+    // Do not exit here; let the threads handle the cleanup
 }
 
 // Function to display usage instructions for starting the client
 void print_usage(char *program_name) {
     fprintf(stderr,
-        // "Usage: %s -u username -r realname -p password -a address:port\n"
         "Usage: %s -u username -c ansicode -a address:port\n"
         "\t-u  Set the username for the login\n"
         "\t-a  Set the IP address and port of the server in the format address:port\n",
@@ -93,7 +95,10 @@ void *send_msg_handler(void *arg) {
             sprintf(buffer, ANSI_STYLE_BOLD ANSI_COLOR_ESCAPE "%sm%s" ANSI_RESET ": %s\n", colorid, username, message);
             send(sockfd, buffer, strlen(buffer), 0);
         } else if (strcmp(message, "/exit") == 0) {
-            break;
+            // Notify server of intent to exit
+            send(sockfd, "/exit", strlen("/exit"), 0); 
+            printf("You have exited the chat.\n");
+            break; // Exit the send message loop
         } else {
             // Send the command as is, without the username prefix
             send(sockfd, message, strlen(message), 0);
@@ -134,16 +139,17 @@ void *recv_msg_handler(void *arg) {
             // Check if the message is a server shutdown notice
             if (strcmp(message, "Server is shutting down.\n") == 0) {
                 printf("%s - Server is shutting down. Exiting...\n", timestamp);
+                continue;
                 exit(EXIT_SUCCESS);  // Exit client program
             }
             
-            printf("%s - %s", timestamp, message);  // Print the timestamp and message
+            printf("\n%s - %s", timestamp, message);  // Print the timestamp and message
             str_overwrite_stdout();  // Overwrite the stdout
         } else if (receive == 0) {
-            printf("Server connection closed. Exiting...\n");
+            printf("\nServer connection closed. Exiting...\n");
             exit(EXIT_SUCCESS);  // Exit client program
         } else {
-            perror("recv failed");  // Print the receive error
+            perror("\nrecv failed");  // Print the receive error
             exit(EXIT_FAILURE);  // Exit client program due to error
         }
     }
@@ -172,10 +178,6 @@ void parse_args(int argc, char *argv[], char *ip, int *port) {
               if(validate_colorid(optarg)){
                 strncpy(colorid, optarg, 2);
                 break;
-              }
-              else{
-                print_usage(argv[0]);
-                exit(EXIT_FAILURE);
               }
             default:
                 print_usage(argv[0]);
@@ -252,14 +254,16 @@ int main(int argc, char **argv) {
 
   // Main loop to check for socket disconnection
   while (1) {
-    if (sockfd == -1) {
-      printf("\nDisconnected from server.\n");
-      break;
+    pthread_mutex_lock(&exit_mutex);
+    if (exit_flag) {
+        pthread_mutex_unlock(&exit_mutex);
+        break;  // Break the loop if exit flag is set
     }
   }
-
+  // After the threads are created and before entering the main loop
+  pthread_join(send_msg_thread, NULL); // Wait for the send message thread to finish
+  pthread_join(recv_msg_thread, NULL); // Wait for the receive message thread to finish
   // Cleanup before exiting
   close(sockfd);
-
   return EXIT_SUCCESS;
 }
