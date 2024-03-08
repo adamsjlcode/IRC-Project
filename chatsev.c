@@ -65,6 +65,7 @@ void remove_client(int uid) {
             break;
         }
     }
+    pthread_mutex_unlock(&clients_mutex);  // Unlocking the mutex
 }
 
 void *handle_client(void *arg) {
