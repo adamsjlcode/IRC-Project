@@ -26,14 +26,23 @@ pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;  // Mutex for synchro
 
 // Function Prototypes
 void add_client(client_t *cl);
+
 void remove_client(int uid);
+
 void send_message(char *s, int uid);
+
 void *handle_client(void *arg);
+
 void execute_command(client_t *cli, char *cmd);
+
 int is_command(const char *message);
+
 void getTimeStamp(char *timestamp);
+
 void handle_sigint(int sig);
+
 void shutdown_server();
+
 
 // Add Client to the server
 void add_client(client_t *cl) {
@@ -56,8 +65,58 @@ void remove_client(int uid) {
             break;
         }
     }
-    pthread_mutex_unlock(&clients_mutex);  // Unlocking the mutex
 }
+
+void *handle_client(void *arg) {
+    client_t *cli = (client_t *) arg;
+    char buffer[BUFFER_SIZE];
+    char username[32];
+
+    // Receive the username first
+    int length = recv(cli->sockfd, username, 32, 0);
+    if (length > 0) {
+        // Null-terminate the username and copy it to the client structure
+        username[length] = '\0'; // Ensure null-termination
+        strncpy(cli->username, username, 31);
+        cli->username[31] = '\0'; // Ensure the username is not too long
+    } else {
+        perror("Couldn't receive username from client");
+        close(cli->sockfd);
+        free(cli);
+        return NULL;
+    }
+    while (1) {
+        length = recv(cli->sockfd, buffer, BUFFER_SIZE, 0);
+        if (length <= 0) {
+            break; // Client disconnected
+        }
+
+        buffer[length] = '\0';
+        char *command = buffer;
+        // Check if message contains a colon, indicating it might be a "username: message" format
+        char *colon = strchr(buffer, ':');
+        if (colon) {
+            // Move the pointer past the colon and white space
+            command = colon + 2;
+        }
+
+        if (is_command(command)) {
+            execute_command(cli, command);
+        } else {
+            send_message(buffer, cli->uid); // Broadcast message
+        }
+
+        memset(buffer, 0, BUFFER_SIZE);
+    }
+
+    close(cli->sockfd);
+    remove_client(cli->uid);
+    free(cli);
+    pthread_detach(pthread_self());
+
+    return NULL;
+}
+
 // Signal handler for SIGINT and SIGTERM
 void handle_sigint(int sig) {
     printf("Shutting down server...\n");
@@ -103,40 +162,6 @@ void send_message(char *s, int uid) {
     pthread_mutex_unlock(&clients_mutex);  // Unlocking the mutex
 }
 
-// Thread function to handle all communication with a client
-void *handle_client(void *arg) {
-    client_t *cli = (client_t *)arg;
-    char buffer[BUFFER_SIZE];
-
-    while (1) {
-        int length = recv(cli->sockfd, buffer, BUFFER_SIZE, 0);
-        if (length <= 0) {
-            break; // Client disconnected
-        }
-
-        buffer[length] = '\0';
-        if (is_command(buffer)) {
-            execute_command(cli, buffer);
-        } else {
-            send_message(buffer, cli->uid); // Broadcast message
-        }
-
-        memset(buffer, 0, BUFFER_SIZE);
-    }
-
-    close(cli->sockfd);
-    remove_client(cli->uid);
-    free(cli);
-    pthread_detach(pthread_self());
-
-    return NULL;
-}
-
-// Check if a message is a command
-int is_command(const char *message) {
-    return message[0] == '/';
-}
-
 // Get current time stamp in the format YYYY-MM-DD HH:MM:SS
 void getTimeStamp(char *timestamp) {
     time_t rawtime;
@@ -151,27 +176,112 @@ void getTimeStamp(char *timestamp) {
 // Execute command received from a client
 void execute_command(client_t *cli, char *cmd) {
     char log_msg[BUFFER_SIZE];
-    snprintf(log_msg, "Command '%s' used by %s\n", cmd, cli->username);
+    char *token = strtok(cmd, " ");
+    snprintf(log_msg, sizeof(log_msg), "Command '%s' used by %s\n", cmd, cli->username);
     printf("%s", log_msg);  // Logging the command and user who executed it
 
     // Basic commands implementation
     if (strcmp(cmd, "/help") == 0) {
         char help_msg[BUFFER_SIZE];
-        snprintf(help_msg, BUFFER_SIZE, "\nHelp commands:\n""/help - Show this help message\n""/exit - Disconnect from the chat\n");
+        snprintf(help_msg, BUFFER_SIZE,"\nHelp commands:\n""/help - Show this help message\n""/exit - Disconnect from the chat\n");
         // Log the command usage
         char log_msg[BUFFER_SIZE];
         getTimeStamp(log_msg);
-        snprintf(log_msg + strlen(log_msg), BUFFER_SIZE - strlen(log_msg)," - %s used /help command\n", cli->username);
+        snprintf(log_msg + strlen(log_msg), BUFFER_SIZE - strlen(log_msg), " - %s used /help command\n", cli->username);
         printf("%s", log_msg);
         write(cli->sockfd, help_msg, strlen(help_msg));
     } else if (strcmp(cmd, "/list") == 0) {
-        // List clients implementation
+        // Initialize userlist with a message indicating the start of the user list.
+        char userlist[BUFFER_SIZE] = "Connected users:\n";
+        int ul_length = strlen(userlist);
+
+        pthread_mutex_lock(&clients_mutex);
+        for (int i = 0; i < MAX_CLIENTS; ++i) {
+            if (clients[i]) {
+                // Make sure that we have a proper null-terminated string for the username.
+                clients[i]->username[31] = '\0'; // Ensure null-termination
+                int needed_space = strlen(clients[i]->username) + 2; // Include space for newline and null-terminator.
+                if (ul_length + needed_space < BUFFER_SIZE) {
+                    strcat(userlist, clients[i]->username);
+                    strcat(userlist, "\n");
+                    ul_length += needed_space; // Increase the length of the current user list.
+                } else {
+                    // If we don't have enough space, inform about it.
+                    printf("User list exceeded buffer size.\n");
+                    break; // Exit the loop to avoid buffer overflow.
+                }
+            }
+        }
+        pthread_mutex_unlock(&clients_mutex);
+
+        // Send the user list only if we actually added any users to the list.
+        if (ul_length > strlen("Connected users:\n")) {
+            if (write(cli->sockfd, userlist, ul_length) < 0) {
+                perror("Writing user list to client failed");
+            }
+        } else {
+            // If no users are connected, send a different message.
+            char *no_users_msg = "No users connected.\n";
+            if (write(cli->sockfd, no_users_msg, strlen(no_users_msg)) < 0) {
+                perror("Writing no users message to client failed");
+            }
+        }
+
+        printf("Sent user list to %s\n", cli->username); // Debug statement
+    } else if (strcmp(token, "/whisper") == 0) {
+        char *recipient_username = strtok(NULL, " "); // Get the recipient username
+        if (recipient_username == NULL) {
+            char *msg = "Whisper command format: /whisper <username> <message>\n";
+            write(cli->sockfd, msg, strlen(msg));
+            return;
+        }
+
+        char *whisper_message = strtok(NULL, ""); // Get the rest of the command as the message
+        if (whisper_message == NULL) {
+            char *msg = "No message specified.\n";
+            write(cli->sockfd, msg, strlen(msg));
+            return;
+
+        }
+
+        // Construct the whisper message to be sent
+        char message_to_send[BUFFER_SIZE];
+        snprintf(message_to_send, BUFFER_SIZE, "[Whisper from %s]: %s\n", cli->username, whisper_message);
+
+        // Lock the clients mutex before accessing the clients array
+        pthread_mutex_lock(&clients_mutex);
+        int recipient_found = 0;
+        for (int i = 0; i < MAX_CLIENTS; ++i) {
+            if (clients[i] && strcmp(clients[i]->username, recipient_username) == 0) {
+                // Found the recipient, send the message
+                if (write(clients[i]->sockfd, message_to_send, strlen(message_to_send)) < 0) {
+                    perror("Sending whisper failed");
+                } else {
+                    recipient_found = 1;
+                }
+                break; // Stop searching after finding the recipient
+            }
+        }
+        pthread_mutex_unlock(&clients_mutex);
+
+        // Inform the sender if the recipient was not found
+        if (!recipient_found) {
+            char *msg = "Recipient not found.\n";
+            write(cli->sockfd, msg, strlen(msg));
+        }
     } else if (strcmp(cmd, "/exit") == 0) {
         // Disconnect the client
     } else {
         char *unknown_cmd_msg = "Unknown command.\\n";
+
         write(cli->sockfd, unknown_cmd_msg, strlen(unknown_cmd_msg));
     }
+}
+
+int is_command(const char *message) {
+    int isCmd = message[0] == '/';
+    printf("is_command: %s -> %d\n", message, isCmd); // Debug statement
+    return isCmd;
 }
 
 // Main server function
@@ -228,7 +338,7 @@ int main(int argc, char **argv) {
 
     signal(SIGPIPE, SIG_IGN);  // Ignore SIGPIPE to prevent termination when writing to a closed socket
 
-    if (bind(listenfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+    if (bind(listenfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
         perror("ERROR: Socket binding failed");
         return EXIT_FAILURE;
     }
@@ -241,7 +351,7 @@ int main(int argc, char **argv) {
     printf("<[ SERVER STARTED ]>\n");
 
     while (1) {
-        connfd = accept(listenfd, (struct sockaddr *)&cli_addr, &cli_len);
+        connfd = accept(listenfd, (struct sockaddr *) &cli_addr, &cli_len);
         if (connfd < 0) {
             perror("ERROR: Accepting connection failed");
             continue;
@@ -252,7 +362,7 @@ int main(int argc, char **argv) {
         printf("Connection accepted from %s:%d\n", cli_ip, ntohs(cli_addr.sin_port));
 
         // Allocate memory for a new client and set its attributes
-        client_t *cli = (client_t *)malloc(sizeof(client_t));
+        client_t *cli = (client_t *) malloc(sizeof(client_t));
         if (!cli) {
             perror("ERROR: Unable to allocate memory for new client");
             continue;
@@ -263,7 +373,7 @@ int main(int argc, char **argv) {
 
         // Add new client to the clients array
         add_client(cli);
-        pthread_create(&tid, NULL, &handle_client, (void *)cli);  // Create a thread to handle the new client
+        pthread_create(&tid, NULL, &handle_client, (void *) cli);  // Create a thread to handle the new client
 
         getTimeStamp(timestamp);  // Get the current timestamp
         printf("%s: New client connected.\n", timestamp);
@@ -274,3 +384,4 @@ int main(int argc, char **argv) {
 
     return EXIT_SUCCESS;
 }
+
