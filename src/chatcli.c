@@ -128,30 +128,30 @@ void *recv_msg_handler(void *arg) {
     char message[BUFFER_SIZE] = {};  // Buffer for incoming messages
 
     while (1) {
-        memset(message, 0, BUFFER_SIZE);
-        int receive = recv(sockfd, message, BUFFER_SIZE, 0);
-        char timestamp[20];
-        
-        if (receive > 0) {
-            message[receive] = '\0';  // Null-terminate the message
-            getTimeStamp(timestamp);  // Get the current timestamp
-            
-            // Check if the message is a server shutdown notice
-            if (strcmp(message, "Server is shutting down.\n") == 0) {
-                printf("%s - Server is shutting down. Exiting...\n", timestamp);
-                continue;
-                exit(EXIT_SUCCESS);  // Exit client program
-            }
-            
-            printf("\n%s - %s", timestamp, message);  // Print the timestamp and message
-            str_overwrite_stdout();  // Overwrite the stdout
-        } else if (receive == 0) {
-            printf("\nServer connection closed. Exiting...\n");
-            exit(EXIT_SUCCESS);  // Exit client program
-        } else {
-            perror("\nrecv failed");  // Print the receive error
-            exit(EXIT_FAILURE);  // Exit client program due to error
-        }
+      memset(message, 0, BUFFER_SIZE);
+      int receive = recv(sockfd, message, BUFFER_SIZE, 0);
+      char timestamp[20];
+      
+      if (receive > 0) {
+          message[receive] = '\0';  // Null-terminate the message
+          getTimeStamp(timestamp);  // Get the current timestamp
+          
+          // Check if the message is a server shutdown notice
+          if (strcmp(message, "Server is shutting down.\n") == 0) {
+              printf("%s - Server is shutting down. Exiting...\n", timestamp);
+              continue;
+              exit(EXIT_SUCCESS);  // Exit client program
+          }
+          
+          printf("\n%s - %s", timestamp, message);  // Print the timestamp and message
+          str_overwrite_stdout();  // Overwrite the stdout
+      } else if (receive == 0) {
+          printf("\nServer connection closed. Exiting...\n");
+          exit(EXIT_SUCCESS);  // Exit client program
+      } else {
+          perror("\nrecv failed");  // Print the receive error
+          exit(EXIT_FAILURE);  // Exit client program due to error
+      }
     }
     return NULL;
 }

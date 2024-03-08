@@ -170,6 +170,7 @@ void getTimeStamp(char *timestamp) {
 // Execute command received from a client
 void execute_command(client_t *cli, char *cmd) {
     char log_msg[BUFFER_SIZE];
+    char *token = strtok(cmd, " ");
     snprintf(log_msg, sizeof(log_msg), "Command '%s' used by %s\n", cmd, cli->username);
     printf("%s", log_msg); // Logging the command and user who executed it
 
@@ -215,6 +216,47 @@ void execute_command(client_t *cli, char *cmd) {
         }
         free(userlist);
         printf("Sent user list to %s\n", cli->username); // Debug statement
+    } else if (strcmp(token, "/whisper") == 0) {
+        char *recipient_username = strtok(NULL, " "); // Get the recipient username
+        if (recipient_username == NULL) {
+            char *msg = "Whisper command format: /whisper <username> <message>\n";
+            write(cli->sockfd, msg, strlen(msg));
+            return;
+        }
+
+        char *whisper_message = strtok(NULL, ""); // Get the rest of the command as the message
+        if (whisper_message == NULL) {
+            char *msg = "No message specified.\n";
+            write(cli->sockfd, msg, strlen(msg));
+            return;
+
+        }
+
+        // Construct the whisper message to be sent
+        char message_to_send[BUFFER_SIZE];
+        snprintf(message_to_send, BUFFER_SIZE, "[Whisper from %s]: %s\n", cli->username, whisper_message);
+
+        // Lock the clients mutex before accessing the clients array
+        pthread_mutex_lock(&clients_mutex);
+        int recipient_found = 0;
+        for (int i = 0; i < MAX_CLIENTS; ++i) {
+            if (clients[i] && strcmp(clients[i]->username, recipient_username) == 0) {
+                // Found the recipient, send the message
+                if (write(clients[i]->sockfd, message_to_send, strlen(message_to_send)) < 0) {
+                    perror("Sending whisper failed");
+                } else {
+                    recipient_found = 1;
+                }
+                break; // Stop searching after finding the recipient
+            }
+        }
+        pthread_mutex_unlock(&clients_mutex);
+
+        // Inform the sender if the recipient was not found
+        if (!recipient_found) {
+            char *msg = "Recipient not found.\n";
+            write(cli->sockfd, msg, strlen(msg));
+        }
     } else if (strcmp(cmd, "/exit") == 0) {
         // Exit command implementation
         // Code to disconnect the client
